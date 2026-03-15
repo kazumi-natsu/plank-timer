@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Plank Timer
 
-## Getting Started
+広告なし・ログイン不要のプランクトレーニング専用タイマーWebアプリ。
 
-First, run the development server:
+## 機能
+
+- **タイマー画面**: 円形プログレスリング付きカウントダウンタイマー
+  - 30秒 / 60秒 / 90秒 / 120秒 / カスタム のプリセット選択
+  - 残り10秒でリングがオレンジに変化
+  - 完了時にバイブレーション + 効果音
+  - 画面スリープ防止（Wake Lock API）
+- **履歴画面**: GitHubコントリビューション風ヒートマップカレンダー
+- **統計画面**: 週間棒グラフ・トレンド折れ線グラフ・ストリーク表示
+- **設定**: 目標時間・効果音・バイブレーション・ダークモード切替・データエクスポート
+
+## 技術スタック
+
+- **フレームワーク**: Next.js 16 (App Router)
+- **スタイリング**: Tailwind CSS v4
+- **グラフ**: Recharts
+- **データ永続化**: localStorage
+- **PWA**: next-pwa
+
+## 開発環境
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 で確認
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ビルド・デプロイ
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+```
 
-## Learn More
+Vercelへのデプロイ:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npx vercel
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## ディレクトリ構成
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+├── layout.tsx          # 共通レイアウト + タブバー
+├── page.tsx            # タイマー画面
+├── history/page.tsx    # 履歴画面
+└── stats/page.tsx      # 統計画面
+components/
+├── Timer/              # タイマー関連コンポーネント
+├── History/            # 履歴・カレンダーコンポーネント
+├── Stats/              # 統計グラフコンポーネント
+├── SettingsModal.tsx   # 設定モーダル
+└── TabBar.tsx          # 下部タブナビゲーション
+hooks/
+├── useTimer.ts         # タイマーロジック（rAF + performance.now）
+├── useRecords.ts       # localStorage CRUD
+├── useWakeLock.ts      # 画面スリープ防止
+└── useSettings.ts      # 設定の読み書き
+lib/
+├── storage.ts          # localStorage ラッパー
+└── stats.ts            # 統計計算ユーティリティ
+types/
+└── index.ts            # 型定義
+```

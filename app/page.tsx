@@ -1,65 +1,183 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ProgressRing } from "@/components/Timer/ProgressRing";
+import { TimerControls } from "@/components/Timer/TimerControls";
+import { PresetSelector } from "@/components/Timer/PresetSelector";
+import { SettingsModal } from "@/components/SettingsModal";
+import { GoalSuggestionCard } from "@/components/GoalSuggestionCard";
+import { useTimer } from "@/hooks/useTimer";
+import { useRecords } from "@/hooks/useRecords";
+import { useSettings } from "@/hooks/useSettings";
+import { useWakeLock } from "@/hooks/useWakeLock";
+import { PlankRecord } from "@/types";
+import { getTodayString } from "@/lib/stats";
+import { getSuggestion, getGreeting, getCurrentStreak as calcStreak } from "@/lib/goalSuggestion";
+
+function StreakBadge({ streak }: { streak: number }) {
+  if (streak < 2) return null;
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-500/15 text-orange-300 text-xs font-semibold border border-orange-500/20">
+      🔥 {streak}日連続
+    </span>
+  );
+}
+
+export default function TimerPage() {
+  const { settings, updateSettings } = useSettings();
+  const { records, addRecord } = useRecords();
+  const [targetSeconds, setTargetSeconds] = useState(60);
+  const [showSettings, setShowSettings] = useState(false);
+  const [savedMessage, setSavedMessage] = useState(false);
+  const [showSuggestion, setShowSuggestion] = useState(true);
+
+  useEffect(() => {
+    setTargetSeconds(settings.defaultTargetSeconds);
+  }, [settings.defaultTargetSeconds]);
+
+  const suggestion = useMemo(() => getSuggestion(records), [records]);
+  const greeting = useMemo(() => getGreeting(), []);
+  const streak = useMemo(() => calcStreak(records), [records]);
+
+  const { state, remainingSeconds, actualSeconds, progress, isWarning, start, pause, reset } = useTimer({
+    targetSeconds,
+    soundEnabled: settings.soundEnabled,
+    vibrationEnabled: settings.vibrationEnabled,
+  });
+
+  useWakeLock(state === "running");
+
+  const handleSaveRecord = useCallback(() => {
+    const record: PlankRecord = {
+      id: crypto.randomUUID(),
+      date: getTodayString(),
+      targetSeconds,
+      actualSeconds,
+      completedAt: new Date().toISOString(),
+    };
+    addRecord(record);
+    setSavedMessage(true);
+    reset();
+    setTimeout(() => setSavedMessage(false), 2500);
+  }, [targetSeconds, actualSeconds, addRecord, reset]);
+
+  const handleApplySuggestion = useCallback((sec: number) => {
+    setTargetSeconds(sec);
+    setShowSuggestion(false);
+  }, []);
+
+  const isIdle = state === "idle";
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+      {/* ヘッダー */}
+      <header className="flex items-center justify-between px-4 pt-safe pt-4 pb-2 max-w-md mx-auto w-full">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-bold text-green-400">Plank Timer</h1>
+          <StreakBadge streak={streak} />
+        </div>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 rounded-full hover:bg-gray-800 transition-colors text-gray-400 hover:text-white"
+          aria-label="設定を開く"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-6 h-6">
+            <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
+            <path strokeLinecap="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+          </svg>
+        </button>
+      </header>
+
+      {/* グリーティング（idle時のみ） */}
+      {isIdle && (
+        <div className="px-4 pb-1 max-w-md mx-auto w-full">
+          <p className="text-gray-300 text-sm font-medium">{greeting.text}</p>
+          <p className="text-gray-500 text-xs">{greeting.sub}</p>
+        </div>
+      )}
+
+      {/* メインコンテンツ */}
+      <main className="flex-1 flex flex-col items-center px-4 gap-6 pb-28 max-w-md mx-auto w-full mt-4">
+        {/* プログレスリング */}
+        <ProgressRing
+          remainingSeconds={remainingSeconds}
+          progress={progress}
+          isWarning={isWarning}
+          targetSeconds={targetSeconds}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {/* コントロール */}
+        <TimerControls
+          state={state}
+          actualSeconds={actualSeconds}
+          targetSeconds={targetSeconds}
+          onStart={start}
+          onPause={pause}
+          onReset={reset}
+          onSave={handleSaveRecord}
+        />
+
+        {/* idle時: 今日の目標カード + プリセット */}
+        {isIdle && (
+          <div className="w-full space-y-4">
+            {/* スマートゴール提案 */}
+            {showSuggestion && (
+              <div className="relative">
+                <GoalSuggestionCard
+                  suggestion={suggestion}
+                  currentTarget={targetSeconds}
+                  onApply={handleApplySuggestion}
+                />
+                <button
+                  onClick={() => setShowSuggestion(false)}
+                  className="absolute top-3 right-3 text-gray-600 hover:text-gray-400 p-1"
+                  aria-label="閉じる"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                    <path d="M12 4L4 12M4 4l8 8" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* プリセット選択 */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-gray-500 text-xs">目標時間を選ぶ</p>
+                {!showSuggestion && (
+                  <button
+                    onClick={() => setShowSuggestion(true)}
+                    className="text-xs text-green-500 hover:text-green-400 transition-colors"
+                  >
+                    おすすめを見る
+                  </button>
+                )}
+              </div>
+              <PresetSelector
+                targetSeconds={targetSeconds}
+                onSelect={setTargetSeconds}
+              />
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* 保存完了トースト */}
+      {savedMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-full text-sm font-semibold shadow-xl shadow-green-900/40 animate-fade-in-out whitespace-nowrap z-50">
+          ✓ 記録を保存しました
+        </div>
+      )}
+
+      {/* 設定モーダル */}
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          onUpdate={updateSettings}
+          onClearData={() => {}}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }
